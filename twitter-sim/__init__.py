@@ -56,25 +56,67 @@ def draw_simulation(graph, save = False):
     pos = nx.spring_layout(graph, seed = 767)
     ec = nx.draw_networkx_edges(graph, pos, alpha=0.2)
     nc = nx.draw_networkx_nodes(graph, pos, nodelist=nodes, node_color=colors, 
-                                with_labels=False, node_size=100, cmap='YlOrRd')
+                                with_labels=True, node_size=100, cmap='YlOrRd')
+    Labels=dict([(n, ' ') for n in G.nodes()])
+    for node, data in G.nodes(data=True):
+        if data['kind'] == 'bot':
+            Labels[node] = 'B'
+    nx.draw_networkx_labels(G, pos,
+#                            labels=dict([(n, n) for n in G.nodes()]),
+                            labels = Labels,
+                            font_size = 8,
+                            font_color='white')
     plt.colorbar(nc)
     plt.axis('off')
     plt.show()    
 #%%
-size = 200
+size = 100
 prob = 0.3
 influence_proportion = 0.1
 bucket1 = [0,1]
 bucket2 = [0,-1]
 probability_of_link = 0.1
 dynamic_network = True
-global_perception = 0.001
-similarity_weight = 3
+global_perception = 0.00000001
+similarity_weight = 1
 prestige_weight = 1
+perc_bots = 0.1
+bot_initial_links = 2
 
 #G = nx.erdos_renyi_graph(size, prob, seed=767, directed=True)
 G = nx.scale_free_graph(size)
 
+
+#%%
+
+for node, data in G.nodes(data=True):
+    data['lambda'] = np.random.uniform(0.001,0.75)
+    data['wake'] = 0 + np.round(np.random.exponential(scale = 1 / data['lambda']))
+    data['inbox'] = []
+    data['belief'] = np.random.uniform(0,1.0)
+    if data['belief'] < 0.1:
+        data['kind'] = 'beacon'
+    else:
+        data['kind'] = 'normal'
+
+#%%
+num_bots = int(np.round(size*perc_bots))
+bot_names = [len(G) + i for i in range(num_bots)]
+for bot_name in bot_names:
+    initial_links = random.sample(G.nodes, bot_initial_links)
+    G.add_node(bot_name)
+    for link in initial_links:
+        G.add_edge(bot_name,link)
+        
+for node, data in G.nodes(data=True):
+    if node in bot_names:
+        data['lambda'] = np.random.uniform(0.5,0.75)
+        data['wake'] = 0 + np.round(np.random.exponential(scale = 1 / data['lambda']))
+        data['inbox'] = []
+        data['belief'] = np.random.uniform(0.95,1.0)
+        data['kind'] = 'bot'
+    
+#%%
 ## Remove self_loops and isololates
 G.remove_edges_from(list(G.selfloop_edges()))
 G.remove_nodes_from(list(nx.isolates(G)))
@@ -91,25 +133,14 @@ for node in b:
 A = nx.adjacency_matrix(G).astype(bool)
 similarity = 1 - pairwise_distances(A.todense(), metric = 'jaccard')
 prestige = scale(list(dict(G.degree()).values()))
-#%%
 
-for node, data in G.nodes(data=True):
-    data['lambda'] = np.random.uniform(0.001,0.75)
-    data['wake'] = 0 + np.round(np.random.exponential(scale = 1 / data['lambda']))
-    data['inbox'] = []
-    data['belief'] = np.random.uniform(0.0,1.0)
-    data['kind'] = 'normal'
-#    data['susceptibility'] = np.random.uniform(0,1)
-    
 #list(G.nodes(data=True))
 draw_simulation(G)
-
-#list(G.selfloop_edges())
 #%%
 total_tweets = []
 all_beliefs = {'time':[],'user':[],'beliefs':[]}
 bar = progressbar.ProgressBar()
-for step in bar(range(2000)):
+for step in bar(range(800)):
     # Once a week we update the similarity matrix and Global Perception and prestige
     if (step % 168) == 0:
         A = nx.adjacency_matrix(G).astype(bool)
@@ -134,7 +165,7 @@ for step in bar(range(2000)):
                 perc = np.mean(read_tweets)
                 #update prestige
 #                data['belief'] = data['belief'] + data['susceptibility'] * perc * (1-data['belief'])
-                if perc > 0:
+                if (perc + global_perception) > 0:
                     new_belief = data['belief'] +   (perc + global_perception) * (1-data['belief'])
                 else:
                     new_belief = data['belief'] +   (perc + global_perception) * (data['belief'])
@@ -143,14 +174,16 @@ for step in bar(range(2000)):
             if data['kind'] == 'bot':
                 chance = 0.8
                 tweets = list(choice(bucket1, np.random.randint(0,10),p=[1-chance, chance]))
-            # Send Tweets for normal users
-            elif data['belief'] > 0.05:
-                chance = data['belief'] * influence_proportion
-                tweets = list(choice(bucket1, np.random.randint(0,10),p=[1-chance, chance]))
+                
             # Send Tweets for Beacons
-            else:
+            elif data['kind'] == 'beacon':
                 chance = 0.8
                 tweets = list(choice(bucket2, np.random.randint(0,10),p=[1-chance, chance]))
+            # Send Tweets for normal users
+            else:
+                chance = data['belief'] * influence_proportion
+                tweets = list(choice(bucket1, np.random.randint(0,10),p=[1-chance, chance]))
+
             total_tweets.append(pd.DataFrame({'tweets': tweets, 'time' :[step] * len(tweets)}))
             predecessors = G.predecessors(node)
             for follower in predecessors:
@@ -163,8 +196,15 @@ for step in bar(range(2000)):
             if (np.random.uniform(0,1) < probability_of_link) and (dynamic_network):
                 new_link = link_prediction(G,node)
                 if len(new_link) > 0:
-                    G.add_edges_from(new_link)                
-#x = list(G.nodes(data=True))
+                    G.add_edges_from(new_link) 
+            if (data['kind'] == 'bot') and (dynamic_network):
+                successors = list(G.successors(node)) + [node]
+                potential = list(set(G.nodes) - set(successors))
+                if len(potential) > 0:
+                    new_link = random.sample(list(predecessors),1)[0]
+                    G.add_edge(node,new_link)
+                
+x = list(G.nodes(data=True))
 draw_simulation(G)
 #%%
 def draw_beliefs(all_beliefs, breaks = 'weeks'):
