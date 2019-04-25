@@ -23,6 +23,7 @@ import operator
 def write_graph_to_file(graph, file_name = 'graph.graphml'):
     for node, data in graph.nodes(data=True):
         data['inbox'] = 'blank'
+        data['mentioned_by'] = 'blank'
     nx.write_graphml(G, path = file_name)
 #%%
 def draw_simulation(graph, save = False):
@@ -32,11 +33,11 @@ def draw_simulation(graph, save = False):
     ec = nx.draw_networkx_edges(graph, pos, alpha=0.2)
     nc = nx.draw_networkx_nodes(graph, pos, nodelist=nodes, node_color=colors, 
                                 with_labels=True, node_size=100, cmap='YlOrRd')
-    Labels=dict([(n, ' ') for n in G.nodes()])
-    for node, data in G.nodes(data=True):
+    Labels=dict([(n, ' ') for n in graph.nodes()])
+    for node, data in graph.nodes(data=True):
         if data['kind'] == 'bot':
             Labels[node] = 'B'
-    nx.draw_networkx_labels(G, pos,
+    nx.draw_networkx_labels(graph, pos,
 #                            labels=dict([(n, n) for n in G.nodes()]),
                             labels = Labels,
                             font_size = 8,
@@ -101,6 +102,7 @@ from sklearn.metrics import pairwise_distances
 import progressbar
 import argparse
 import time
+import operator
 #%%
 def scale(x):
     x = np.array(x)
@@ -129,7 +131,7 @@ def link_prediction(G, node,similarity):
         if ~G.has_edge(link[0],link[1]):
             final.append(link)
     return(final)
-
+ 
 #%%
 def create_network(size = 100, bot_initial_links = 2, perc_bots = 0.05):
     # Create Scale Free Graph
@@ -138,6 +140,7 @@ def create_network(size = 100, bot_initial_links = 2, perc_bots = 0.05):
         data['lambda'] = np.random.uniform(0.001,0.75)
         data['wake'] = 0 + np.round(np.random.exponential(scale = 1 / data['lambda']))
         data['inbox'] = []
+        data['mentioned_by'] = []
         data['belief'] = np.random.uniform(0,1.0)
         if data['belief'] < 0.2:
             data['kind'] = 'beacon'
@@ -160,6 +163,7 @@ def create_network(size = 100, bot_initial_links = 2, perc_bots = 0.05):
             data['inbox'] = []
             data['belief'] = np.random.uniform(0.95,1.0)
             data['kind'] = 'bot'
+            data['mentioned_by'] = []
         
     ## Remove self_loops and isololates
     G.remove_edges_from(list(G.selfloop_edges()))
@@ -177,19 +181,81 @@ def create_network(size = 100, bot_initial_links = 2, perc_bots = 0.05):
         
     return(G)
     
-
 #%%
-def run(size = 100, perc_bots = 0.05, strategy = 'normal'):
+def create_polarized_network(size = 100, bot_initial_links = 2, perc_bots = 0.05):
+    # Create Scale Free Graph
+    F = nx.scale_free_graph(size)
+    H = nx.scale_free_graph(size)
+    M = {}
+    for num in range(size):
+        M[num] = num + size
+    H = nx.relabel_nodes(H, M, copy=False)
+    G = nx.compose(F,H)
+    
+    for node, data in G.nodes(data=True):
+        data['lambda'] = np.random.uniform(0.001,0.75)
+        data['wake'] = 0 + np.round(np.random.exponential(scale = 1 / data['lambda']))
+        data['inbox'] = []
+        data['mentioned_by'] = []
+        if node < size:
+            data['belief'] = np.random.uniform(0,0.5)
+        else:
+            data['belief'] = np.random.uniform(0.5,1.0)
+        if data['belief'] < 0.2:
+            data['kind'] = 'beacon'
+        else:
+            data['kind'] = 'normal'
+        
+    #  Add Bots
+    num_bots = int(np.round(len(G.nodes)*perc_bots))
+    bot_names = [len(G) + i for i in range(num_bots)]
+    for bot_name in bot_names:
+        initial_links = random.sample(G.nodes, bot_initial_links)
+        G.add_node(bot_name)
+        for link in initial_links:
+            G.add_edge(bot_name,link)
+    # Add Bot Data      
+    for node, data in G.nodes(data=True):
+        if node in bot_names:
+            data['lambda'] = np.random.uniform(0.1,0.75)
+            data['wake'] = 0 + np.round(np.random.exponential(scale = 1 / data['lambda']))
+            data['inbox'] = []
+            data['belief'] = np.random.uniform(0.95,1.0)
+            data['kind'] = 'bot'
+            data['mentioned_by'] = []
+        
+    ## Remove self_loops and isololates
+    G.remove_edges_from(list(G.selfloop_edges()))
+    G.remove_nodes_from(list(nx.isolates(G)))
+    
+    # Ensure every node has outdegree > 0 (otherwise similarity fails)
+    A = nx.adjacency_matrix(G).astype(bool)
+    b = np.squeeze(np.asarray(A.sum(axis = 1)))
+    b = np.argwhere(b==0)
+    for node in b:
+        connected = [to for (fr, to) in G.edges(node)]
+        unconnected = [n for n in G.nodes() if not n in connected] 
+        new = random.sample(unconnected,1)
+        G.add_edge(node[0], new[0])
+        
+    return(G)
+#%%
+def run(size = 100, perc_bots = 0.05, strategy = 'normal', polarized = False):
     ##################################
     influence_proportion = 0.1
     bucket1 = [0,1]
     bucket2 = [0,-1]
-    probability_of_link = 0.1
+    probability_of_link = 0.05
     dynamic_network = True
     global_perception = 0.00000001
+    retweet_perc = 0.25
+    allowed_successors = 0.2
     #similarity_weight = 1
     #prestige_weight = 1
-    G = create_network(size, perc_bots = perc_bots)
+    if polarized:
+        G = create_polarized_network(size, perc_bots = perc_bots)
+    else:
+        G = create_network(size, perc_bots = perc_bots)
     
     A = nx.adjacency_matrix(G).astype(bool)
     similarity = 1 - pairwise_distances(A.todense(), metric = 'jaccard')
@@ -203,7 +269,7 @@ def run(size = 100, perc_bots = 0.05, strategy = 'normal'):
         if (step % 168) == 0:
             A = nx.adjacency_matrix(G).astype(bool)
             similarity = 1 - pairwise_distances(A.todense(), metric = 'jaccard')
-            prestige = scale(list(dict(G.degree()).values()))
+            prestige = scale(list(dict(G.in_degree()).values()))
             
             ## Update Global Perception
             if len(total_tweets) > 0:
@@ -215,6 +281,7 @@ def run(size = 100, perc_bots = 0.05, strategy = 'normal'):
             all_beliefs['beliefs'].append(data['belief']);
             all_beliefs['kind'].append(data['kind'])
             if data['wake'] < step:
+                retweets = []
                 # Get new 'wake' time
                 data['wake'] = data['wake'] + np.round(np.random.exponential(scale = 1 / data['lambda']))
                 # Read Tweets
@@ -228,7 +295,8 @@ def run(size = 100, perc_bots = 0.05, strategy = 'normal'):
                         new_belief = data['belief'] +   (perc + global_perception) * (1-data['belief'])
                     else:
                         new_belief = data['belief'] +   (perc + global_perception) * (data['belief'])
-                    data['belief'] = new_belief     
+                    data['belief'] = new_belief  
+                    retweets = random.sample(read_tweets, round(retweet_perc*len(read_tweets)))
                 # Send Tweets for bots
                 if data['kind'] == 'bot':
                     chance = 0.8
@@ -238,11 +306,12 @@ def run(size = 100, perc_bots = 0.05, strategy = 'normal'):
                 elif data['kind'] == 'beacon':
                     chance = 0.8
                     tweets = list(choice(bucket2, np.random.randint(0,10),p=[1-chance, chance]))
+                    
                 # Send Tweets for normal users
                 else:
                     chance = data['belief'] * influence_proportion
                     tweets = list(choice(bucket1, np.random.randint(0,10),p=[1-chance, chance]))
-    
+                tweets.extend(retweets)
                 total_tweets.append(pd.DataFrame({'tweets': tweets, 'time' :[step] * len(tweets)}))
                 predecessors = G.predecessors(node)
                 for follower in predecessors:
@@ -251,21 +320,34 @@ def run(size = 100, perc_bots = 0.05, strategy = 'normal'):
                     tweets = [homophily * importance * i for i in tweets]
                     G.nodes[follower]['inbox'].extend(tweets)
                     
+                # Send Mentions
+                neighbors = list(G.neighbors(node))
+                mention = random.sample(neighbors,1)[0]
+                G.nodes[mention]['mentioned_by'].append(node)
+                    
                 # If probabliliy right, add link
-                if (np.random.uniform(0,1) < probability_of_link) and (dynamic_network):
-                    new_link = link_prediction(G,node,similarity)
-                    if len(new_link) > 0:
-                        G.add_edges_from(new_link) 
-                if (data['kind'] == 'bot') and (dynamic_network):
-                    successors = list(G.successors(node)) + [node]
-                    potential = list(set(G.nodes) - set(successors))
-                    if len(potential) > 0:
-                        if strategy == 'targeted':
-                            degree = dict(G.degree(potential))
-                            new_link = max(degree.items(), key=operator.itemgetter(1))[0]
-                        else:
-                            new_link = random.sample(list(potential),1)[0]
-                        G.add_edge(node,new_link)
+                successors = list(G.successors(node)) + [node]
+                if len(successors) < allowed_successors * len(G.nodes) and (dynamic_network):
+                    if np.random.uniform(0,1) < probability_of_link:
+                        new_link = link_prediction(G,node,similarity)
+                        if len(new_link) > 0:
+                            G.add_edges_from(new_link) 
+
+                    # If probabliliy right, add link to a mention
+                    if (np.random.uniform(0,1) < probability_of_link) and (len(data['mentioned_by']) > 0):
+                        new_link = random.sample(data['mentioned_by'],1)
+                        if len(new_link) > 0:
+                            G.add_edge(node, new_link[0]) 
+                    if (data['kind'] == 'bot'):
+                        
+                        potential = list(set(G.nodes) - set(successors))
+                        if len(potential) > 0:
+                            if strategy == 'targeted':
+                                degree = dict(G.in_degree(potential))
+                                new_link = max(degree.items(), key=operator.itemgetter(1))[0]
+                            else:
+                                new_link = random.sample(list(potential),1)[0]
+                            G.add_edge(node,new_link)
     return(pd.DataFrame(all_beliefs),pd.concat(total_tweets), G )
                 
 #x = list(G.nodes(data=True))
@@ -279,18 +361,19 @@ def main():
     parser.add_argument("-perc",help="Percentage of bots" , type=float, required=True)
     parser.add_argument("-runs",help="Number of runs" ,type=int, required = True)
     parser.add_argument("-strategy",help="Bot Strategy" ,type=str, required = True)
+    parser.add_argument("-polarized",help="Bot Strategy" ,type=bool, required = True)
     args=parser.parse_args()
     print(args)
     
     
     for i in range(args.runs):
-        all_beliefs,total_tweets = run(size = args.size, perc_bots = args.perc, strategy = args.strategy)
-        prefix = '_' + args.strategy + str(args.size) + '_' + str(round(args.perc,2)) + '_' + str(i) + '.csv'
+        all_beliefs,total_tweets, G = run(size = args.size, perc_bots = args.perc, strategy = args.strategy, polarized = args.polarized)
+        prefix = '_' + args.strategy +'_' + str(args.polarized) +  str(args.size) + '_' + str(round(args.perc,2)) + '_' + str(i) + '.csv'
         all_beliefs.to_csv('data/all_beliefs' + prefix, index = False)
         total_tweets.to_csv('data/total_tweets'+ prefix, index = False)
 
 if __name__=="__main__":
-	main()
+    main()
 #%%
 #draw_simulation(G)
 #%%
@@ -362,7 +445,7 @@ for node in b:
 
 A = nx.adjacency_matrix(G).astype(bool)
 similarity = 1 - pairwise_distances(A.todense(), metric = 'jaccard')
-prestige = scale(list(dict(G.degree()).values()))
+prestige = scale(list(dict(G.in_degree()).values()))
 
 #list(G.nodes(data=True))
 draw_simulation(G)
