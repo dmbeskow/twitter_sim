@@ -240,7 +240,7 @@ def create_polarized_network(size = 100, bot_initial_links = 2, perc_bots = 0.05
         
     return(G)
 #%%
-def run(size = 100, perc_bots = 0.05, strategy = 'normal', polarized = False):
+def run(size = 100, perc_bots = 0.05, strategy = 'normal', polarized = 'normal'):
     ##################################
     influence_proportion = 0.1
     bucket1 = [0,1]
@@ -252,7 +252,7 @@ def run(size = 100, perc_bots = 0.05, strategy = 'normal', polarized = False):
     allowed_successors = 0.2
     #similarity_weight = 1
     #prestige_weight = 1
-    if polarized:
+    if polarized == 'polarized':
         G = create_polarized_network(size, perc_bots = perc_bots)
     else:
         G = create_network(size, perc_bots = perc_bots)
@@ -302,14 +302,17 @@ def run(size = 100, perc_bots = 0.05, strategy = 'normal', polarized = False):
                     chance = 0.8
                     tweets = list(choice(bucket1, np.random.randint(0,10),p=[1-chance, chance]))
                     
-                # Send Tweets for Beacons
-                elif data['kind'] == 'beacon':
-                    chance = 0.8
-                    tweets = list(choice(bucket2, np.random.randint(0,10),p=[1-chance, chance]))
+                    # Send Tweets for Beacons
+                elif (data['kind'] == 'beacon') and ('read_tweets' in locals()):
+#                    chance = 0.8
+    #                tweets = list(choice(bucket2, np.random.randint(0,10),p=[1-chance, chance]))
+                    num_dis = np.sum(np.array(read_tweets) > 0)
+                    tweets = [-1] * num_dis
                     
                 # Send Tweets for normal users
                 else:
-                    chance = data['belief'] * influence_proportion
+#                    chance = data['belief'] * influence_proportion
+                    chance = 0   # Normal users only send disinformation with retweets
                     tweets = list(choice(bucket1, np.random.randint(0,10),p=[1-chance, chance]))
                 tweets.extend(retweets)
                 total_tweets.append(pd.DataFrame({'tweets': tweets, 'time' :[step] * len(tweets)}))
@@ -325,10 +328,11 @@ def run(size = 100, perc_bots = 0.05, strategy = 'normal', polarized = False):
                 mention = random.sample(neighbors,1)[0]
                 G.nodes[mention]['mentioned_by'].append(node)
                     
-                # If probabliliy right, add link
+                # Make sure doesn't have too many successors already
                 successors = list(G.successors(node)) + [node]
                 if len(successors) < allowed_successors * len(G.nodes) and (dynamic_network):
-                    if np.random.uniform(0,1) < probability_of_link:
+                    # If probabliliy right, add link for non-bot users
+                    if (np.random.uniform(0,1) < probability_of_link) and (data['kind'] != 'bot'):
                         new_link = link_prediction(G,node,similarity)
                         if len(new_link) > 0:
                             G.add_edges_from(new_link) 
@@ -338,8 +342,8 @@ def run(size = 100, perc_bots = 0.05, strategy = 'normal', polarized = False):
                         new_link = random.sample(data['mentioned_by'],1)
                         if len(new_link) > 0:
                             G.add_edge(node, new_link[0]) 
+                    # Bots try to add link every time
                     if (data['kind'] == 'bot'):
-                        
                         potential = list(set(G.nodes) - set(successors))
                         if len(potential) > 0:
                             if strategy == 'targeted':
@@ -361,10 +365,9 @@ def main():
     parser.add_argument("-perc",help="Percentage of bots" , type=float, required=True)
     parser.add_argument("-runs",help="Number of runs" ,type=int, required = True)
     parser.add_argument("-strategy",help="Bot Strategy" ,type=str, required = True)
-    parser.add_argument("-polarized",help="Bot Strategy" ,type=bool, required = True)
+    parser.add_argument("-polarized",help="Polarized" ,type=str, required = True)
     args=parser.parse_args()
     print(args)
-    
     
     for i in range(args.runs):
         all_beliefs,total_tweets, G = run(size = args.size, perc_bots = args.perc, strategy = args.strategy, polarized = args.polarized)
