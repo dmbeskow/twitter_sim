@@ -110,7 +110,7 @@ def create_network(size = 100, bot_initial_links = 2, perc_bots = 0.05):
     
 #%%
 def create_polarized_network(size = 100, bot_initial_links = 2, perc_bots = 0.05):
-        '''
+    '''
     Create polarized two community scale free network.  Populate basic node data
     for normal users, bots, and stiflers.
     '''
