@@ -8,7 +8,7 @@ setup(name='twitter_sim',
       license='MIT',
       packages=['twitter_sim'],
       install_requires=[
-              'netowrkx',
+              'networkx',
               'numpy',
               'scikit-learn',
               'progressbar2',
@@ -16,5 +16,5 @@ setup(name='twitter_sim',
               'pandas'
               ],
       # scripts=['bin/stream_content', 'bin/stream_geo'],
-      include_package_data = True,
+      include_package_data = False,
       zip_safe=False)
