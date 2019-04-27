@@ -375,11 +375,12 @@ def draw_tweet_bar(df):
     import matplotlib.pyplot as plt
 #    df = pd.concat(total_tweets)    
     df['type'] = 'noise'
-    df.loc[df['tweets'] != 0,['type']] = 'disinformation'
+    df.loc[df['tweets'] > 0,['type']] = 'disinformation'
+    df.loc[df['tweets'] < 0,['type']] = 'anti-disinformation'
     df = df['type'].value_counts()
-    ax = df.plot(kind = 'bar', title = 'Tweets by Type',color = ['blue','red'], alpha = 0.6)
+    ax = df.plot(kind = 'bar', title = 'Tweets by Type',color = ['#0073C2FF','#EFC000FF','#868686FF'], rot = 0)
     for x,y in enumerate(df):
-        ax.text(x,y,y)
+        ax.text(x-0.12,y,"{:,}".format(y))
 #draw_tweet_bar(total_tweets) 
 #%%    
 #draw_simulation(G)
