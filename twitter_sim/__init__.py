@@ -353,7 +353,7 @@ def draw_beliefs(all_beliefs, breaks = 'weeks'):
 
 #draw_beliefs(all_beliefs)
 #%%
-def draw_tweet_timeline(t_tweets, plot_type = 'area'):
+def draw_tweet_timeline(total_tweets, plot_type = 'area'):
     '''
     Create area plot of timeline by type of tweet
     '''

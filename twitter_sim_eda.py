@@ -323,7 +323,7 @@ draw_simulation(G)
 
 
 #%%
-def draw_tweet_timeline(t_tweets, plot_type = 'area'):
+def draw_tweet_timeline(total_tweets, plot_type = 'area'):
     df = pd.concat(total_tweets)    
     df['type'] = 'noise'
     df.loc[df['tweets'] > 0,['type']] = 'disinformation'
