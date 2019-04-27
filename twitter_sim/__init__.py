@@ -335,11 +335,10 @@ def draw_beliefs(df, breaks = 'weeks'):
     import matplotlib.pyplot as plt
     df2 = df[['time','beliefs']]
     if breaks == 'weeks':
-        df2['Time'] = df2['time']/168
+        df2['time'] = df2['time']/168
         fig,ax = plt.subplots()
-        df2 = df2.groupby(['time']).mean()
+        df2 = df2.groupby(['Time']).mean()
         df2.plot(title = 'Mean Belief', ax = ax)
-        ax.legend(["hourly avg", "daily rolling avg"])
         plt.ylabel('Belief Measure')
         plt.xlabel('time - weeks')
     else:
