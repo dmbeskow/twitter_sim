@@ -1,13 +1,12 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Tue Apr  9 14:33:57 2019
-
-This is the main Python package file for twitter_sim
-
-@author: dbeskow
+Created on Fri Apr 26 22:56:27 2019
+Description:
+    This module allows users to run twitter_sim from the command line
+@author: dmbeskow
 """
-        
+
+       
 import pandas as pd
 import networkx as nx
 import random
@@ -292,199 +291,25 @@ def run(size = 100, perc_bots = 0.05, strategy = 'normal', polarized = 'normal')
                             G.add_edge(node,new_link)
     return(pd.DataFrame(all_beliefs),pd.concat(total_tweets), G )
                 
-#x = list(G.nodes(data=True))
 
 #%%
-def write_graph_to_file(graph, file_name = 'graph.graphml'):
-    '''
-    This function can write graph and node data to GraphML format
-    '''
-    for node, data in graph.nodes(data=True):
-        data['inbox'] = 'blank'
-        data['mentioned_by'] = 'blank'
-    nx.write_graphml(G, path = file_name)
-#%%
-def draw_simulation(graph, save = False):
-    '''
-    Create a Diagram of Smaller networks colored by belief with Bots annotated
-    '''
-    import matplotlib.pyplot as plt
-    nodes = graph.nodes()
-    colors = [graph.nodes[i]['belief'] for i in graph.nodes]
-    pos = nx.spring_layout(graph, seed = 767)
-    ec = nx.draw_networkx_edges(graph, pos, alpha=0.2)
-    nc = nx.draw_networkx_nodes(graph, pos, nodelist=nodes, node_color=colors, 
-                                with_labels=True, node_size=100, cmap='YlOrRd')
-    Labels=dict([(n, ' ') for n in graph.nodes()])
-    for node, data in graph.nodes(data=True):
-        if data['kind'] == 'bot':
-            Labels[node] = 'B'
-    nx.draw_networkx_labels(graph, pos,
-#                            labels=dict([(n, n) for n in G.nodes()]),
-                            labels = Labels,
-                            font_size = 8,
-                            font_color='white')
-    plt.colorbar(nc)
-    plt.axis('off')
-    plt.show()   
-#%%
-def draw_beliefs(all_beliefs, breaks = 'weeks'):
-    '''
-    Create timeline of beliefs
-    '''
-    import matplotlib.pyplot as plt
-    df = pd.DataFrame(all_beliefs) 
-    df = df[df['kind'] != 'bot']
-    df2 = df[['time','beliefs']]
-    if breaks == 'weeks':
-        df2['time'] = df2['time']/168
-        fig,ax = plt.subplots()
-        df2 = df2.groupby(['time']).mean()
-        df2.plot(title = 'Mean Belief', ax = ax)
-        ax.legend(["hourly avg", "daily rolling avg"])
-        plt.ylabel('Belief Measure')
-        plt.xlabel('time - weeks')
-    else:
-        fig,ax = plt.subplots()
-        df2 = df2.groupby(['time']).mean()
-        df2.plot(title = 'Mean Belief (Does not Count Bots)', ax = ax)
-        plt.ylabel('Belief Measure')
-        plt.xlabel('time - hours')
 
-#draw_beliefs(all_beliefs)
-#%%
-def draw_tweet_timeline(t_tweets, plot_type = 'area'):
-    '''
-    Create area plot of timeline by type of tweet
-    '''
-    import matplotlib.pyplot as plt
-    df = pd.concat(total_tweets)    
-    df['type'] = 'noise'
-    df.loc[df['tweets'] != 0,['type']] = 'disinformation'
-    if plot_type == 'area':
-        df.groupby(['time','type']).sum().unstack().plot.area()
-    else:
-        df.groupby(['time']).sum().plot(title = 'Tweets Per Hour')
-#draw_tweet_timeline(total_tweets)
-#%%
-def draw_tweet_bar(total_tweets):
-    '''
-    Bar chart of types of tweet
-    '''
-    import matplotlib.pyplot as plt
-    df = pd.concat(total_tweets)    
-    df['type'] = 'noise'
-    df.loc[df['tweets'] != 0,['type']] = 'disinformation'
-    df = df['type'].value_counts()
-    ax = df.plot(kind = 'bar', title = 'Tweets by Type',color = ['blue','red'], alpha = 0.6)
-    for x,y in enumerate(df):
-        ax.text(x,y,y)
-#draw_tweet_bar(total_tweets) 
-#%%    
-#draw_simulation(G)
-#%%
-#write_graph_to_file(G, file_name = 'final_1000.graphml')
-
-#%%
-#all_beliefs, total_tweets, G2 = run(size = 1000, perc_bots = 0.05, strategy = 'normal')    
+def main():
     
-#%%
-#size = 100
-#prob = 0.3
-#influence_proportion = 0.1
-#bucket1 = [0,1]
-#bucket2 = [0,-1]
-#probability_of_link = 0.1
-#dynamic_network = True
-#global_perception = 0.00000001
-##similarity_weight = 1
-##prestige_weight = 1
-#perc_bots = 0.05
-#bot_initial_links = 2
-#
-##G = nx.erdos_renyi_graph(size, prob, seed=767, directed=True)
-#G = nx.scale_free_graph(size)
+    parser=argparse.ArgumentParser(description="Simulations Project")
+    parser.add_argument("-size",help="Number of nodes" , type=int, required=True)
+    parser.add_argument("-perc",help="Percentage of bots" , type=float, required=True)
+    parser.add_argument("-runs",help="Number of runs" ,type=int, required = True)
+    parser.add_argument("-strategy",help="Bot Strategy" ,type=str, required = True)
+    parser.add_argument("-polarized",help="Polarized" ,type=str, required = True)
+    args=parser.parse_args()
+    print(args)
+    
+    for i in range(args.runs):
+        all_beliefs,total_tweets, G = run(size = args.size, perc_bots = args.perc, strategy = args.strategy, polarized = args.polarized)
+        prefix = '_' + args.strategy +'_' + str(args.polarized) +  str(args.size) + '_' + str(round(args.perc,2)) + '_' + str(i) + '.csv'
+        all_beliefs.to_csv('data/all_beliefs' + prefix, index = False)
+        total_tweets.to_csv('data/total_tweets'+ prefix, index = False)
 
-
-#%%
-#
-#for node, data in G.nodes(data=True):
-#    data['lambda'] = np.random.uniform(0.001,0.75)
-#    data['wake'] = 0 + np.round(np.random.exponential(scale = 1 / data['lambda']))
-#    data['inbox'] = []
-#    data['belief'] = np.random.uniform(0,1.0)
-#    if data['belief'] < 0.2:
-#        data['kind'] = 'beacon'
-#    else:
-#        data['kind'] = 'normal'
-
-#%%
-#num_bots = int(np.round(size*perc_bots))
-#bot_names = [len(G) + i for i in range(num_bots)]
-#for bot_name in bot_names:
-#    initial_links = random.sample(G.nodes, bot_initial_links)
-#    G.add_node(bot_name)
-#    for link in initial_links:
-#        G.add_edge(bot_name,link)
-#        
-#for node, data in G.nodes(data=True):
-#    if node in bot_names:
-#        data['lambda'] = np.random.uniform(0.1,0.75)
-#        data['wake'] = 0 + np.round(np.random.exponential(scale = 1 / data['lambda']))
-#        data['inbox'] = []
-#        data['belief'] = np.random.uniform(0.95,1.0)
-#        data['kind'] = 'bot'
-#    
-#%%
-## Remove self_loops and isololates
-#G.remove_edges_from(list(G.selfloop_edges()))
-#G.remove_nodes_from(list(nx.isolates(G)))
-#
-#A = nx.adjacency_matrix(G).astype(bool)
-#b = np.squeeze(np.asarray(A.sum(axis = 1)))
-#b = np.argwhere(b==0)
-#for node in b:
-#    connected = [to for (fr, to) in G.edges(node)]
-#    unconnected = [n for n in G.nodes() if not n in connected] 
-#    new = random.sample(unconnected,1)
-#    G.add_edge(node[0], new[0])
-#
-#A = nx.adjacency_matrix(G).astype(bool)
-#similarity = 1 - pairwise_distances(A.todense(), metric = 'jaccard')
-#prestige = scale(list(dict(G.in_degree()).values()))
-#
-##list(G.nodes(data=True))
-#draw_simulation(G)
-#%%
-#list(G.predecessors(104))
-#list(G.successors(104))
-#from scipy.spatial import distance
-#distance.jaccard([0, 0], [0, 1, 0])    
-#    
-#nx.draw(G2, with_labels = True)
-#    
-#G.add_node(1, time='5pm')
-#G.nodes[0]['foo'] = 'bar'
-#G.nodes[0]['inbox'] = []
-#G.nodes[0]['inbox'].append('test')
-#list(G.nodes(data=True))
-#
-#g = nx.Graph()
-#g.add_nodes_from([0, 1])
-#
-#g.add_edge(0, 1)
-#nx.draw(g)
-#
-#
-## Dataset
-#df = pd.DataFrame(np.random.rand(10, 4), columns=['a', 'b', 'c', 'd'])
-# 
-## plot
-#df.plot.area()
-#
-#
-#G = nx.complete_graph(5)
-#G2 = nx.Graph(G.to_undirected())
-#preds = nx.adamic_adar_index(G2.to_undirected())
-#for u, v, p in preds:
-#    print('(%d, %d) -> %.8f' % (u, v, p))
+if __name__=="__main__":
+    main()
