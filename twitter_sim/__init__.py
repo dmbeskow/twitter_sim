@@ -328,12 +328,12 @@ def draw_simulation(graph, save = False):
     plt.axis('off')
     plt.show()   
 #%%
-def draw_beliefs(all_beliefs, breaks = 'weeks'):
+def draw_beliefs(df, breaks = 'weeks'):
     '''
     Create timeline of beliefs
     '''
     import matplotlib.pyplot as plt
-    df = pd.DataFrame(all_beliefs) 
+#    df = pd.DataFrame(all_beliefs) 
     df = df[df['kind'] != 'bot']
     df2 = df[['time','beliefs']]
     if breaks == 'weeks':
@@ -353,13 +353,12 @@ def draw_beliefs(all_beliefs, breaks = 'weeks'):
 
 #draw_beliefs(all_beliefs)
 #%%
-def draw_tweet_timeline(total_tweets, plot_type = 'area'):
+def draw_tweet_timeline(df, plot_type = 'area'):
     '''
     Create area plot of timeline by type of tweet
     '''
     import matplotlib.pyplot as plt
 #    df = pd.concat(total_tweets)  
-    df = total_tweets
     df['type'] = 'noise'
     df.loc[df['tweets'] != 0,['type']] = 'disinformation'
     if plot_type == 'area':
@@ -368,12 +367,12 @@ def draw_tweet_timeline(total_tweets, plot_type = 'area'):
         df.groupby(['time']).sum().plot(title = 'Tweets Per Hour')
 #draw_tweet_timeline(total_tweets)
 #%%
-def draw_tweet_bar(total_tweets):
+def draw_tweet_bar(df):
     '''
     Bar chart of types of tweet
     '''
     import matplotlib.pyplot as plt
-    df = pd.concat(total_tweets)    
+#    df = pd.concat(total_tweets)    
     df['type'] = 'noise'
     df.loc[df['tweets'] != 0,['type']] = 'disinformation'
     df = df['type'].value_counts()
