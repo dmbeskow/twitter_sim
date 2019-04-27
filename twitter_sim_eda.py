@@ -334,7 +334,7 @@ def draw_tweet_timeline(t_tweets, plot_type = 'area'):
         df.groupby(['time']).sum().plot(title = 'Tweets Per Hour')
 draw_tweet_timeline(total_tweets)
 #%%
-def draw_tweet_bar(t_tweets):
+def draw_tweet_bar(total_tweets):
     df = pd.concat(total_tweets)    
     df['type'] = 'noise'
     df.loc[df['tweets'] > 0,['type']] = 'disinformation'
