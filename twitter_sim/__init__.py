@@ -337,7 +337,7 @@ def draw_beliefs(df, breaks = 'weeks'):
     if breaks == 'weeks':
         df2['time'] = df2['time']/168
         fig,ax = plt.subplots()
-        df2 = df2.groupby(['Time']).mean()
+        df2 = df2.groupby(['time']).mean()
         df2.plot(title = 'Mean Belief', ax = ax)
         plt.ylabel('Belief Measure')
         plt.xlabel('time - weeks')
