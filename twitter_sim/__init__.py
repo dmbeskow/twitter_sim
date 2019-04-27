@@ -358,7 +358,8 @@ def draw_tweet_timeline(total_tweets, plot_type = 'area'):
     Create area plot of timeline by type of tweet
     '''
     import matplotlib.pyplot as plt
-    df = pd.concat(total_tweets)    
+#    df = pd.concat(total_tweets)  
+    df = total_tweets
     df['type'] = 'noise'
     df.loc[df['tweets'] != 0,['type']] = 'disinformation'
     if plot_type == 'area':
