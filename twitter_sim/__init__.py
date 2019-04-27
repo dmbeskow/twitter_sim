@@ -360,9 +360,10 @@ def draw_tweet_timeline(df, plot_type = 'area'):
     import matplotlib.pyplot as plt
 #    df = pd.concat(total_tweets)  
     df['type'] = 'noise'
-    df.loc[df['tweets'] != 0,['type']] = 'disinformation'
+    df.loc[df['tweets'] > 0,['type']] = 'disinformation'
+    df.loc[df['tweets'] < 0,['type']] = 'anti-disinformation'
     if plot_type == 'area':
-        df.groupby(['time','type']).sum().unstack().plot.area()
+        df.groupby(['time','type']).count().unstack().plot.area()
     else:
         df.groupby(['time']).sum().plot(title = 'Tweets Per Hour')
 #draw_tweet_timeline(total_tweets)
