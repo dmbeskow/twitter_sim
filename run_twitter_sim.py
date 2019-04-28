@@ -175,7 +175,7 @@ def run(size = 100, perc_bots = 0.05, strategy = 'normal', polarized = 'normal')
     This executes a single run of the twitter_sim ABM model
     '''
     ##################################
-    influence_proportion = 0.1
+    influence_proportion = 0.01
     bucket1 = [0,1]
     bucket2 = [0,-1]
     probability_of_link = 0.05
@@ -243,13 +243,14 @@ def run(size = 100, perc_bots = 0.05, strategy = 'normal', polarized = 'normal')
                 elif (data['kind'] == 'beacon') and ('read_tweets' in locals()):
 #                    chance = 0.8
     #                tweets = list(choice(bucket2, np.random.randint(0,10),p=[1-chance, chance]))
+                    read_tweets = data['inbox'][-30:]
                     num_dis = np.sum(np.array(read_tweets) > 0)
                     tweets = [-1] * num_dis
                     
                 # Send Tweets for normal users
                 else:
-#                    chance = data['belief'] * influence_proportion
-                    chance = 0   # Normal users only send disinformation with retweets
+                    chance = data['belief'] * influence_proportion
+#                    chance = 0   # Normal users only send disinformation with retweets
                     tweets = list(choice(bucket1, np.random.randint(0,10),p=[1-chance, chance]))
                 tweets.extend(retweets)
                 total_tweets.append(pd.DataFrame({'tweets': tweets, 'time' :[step] * len(tweets)}))
